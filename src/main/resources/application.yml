@@ -1,0 +1,58 @@
+server:
+  port: 8443
+  ssl:
+    enabled: true
+    key-store: store/identity.jks
+    key-password: secret
+    key-store-password: secret
+    trust-store: store/truststore.jks
+    trust-store-password: secret
+    client-auth: need
+
+spring:
+  application:
+    name: gateway-service
+  output.ansi.enabled: ALWAYS
+  cloud:
+    gateway:
+      routes:
+        - id: example-service
+          uri: http://localhost:8081/
+          predicates:
+            - Path=/api/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: backendA
+                fallbackUri: forward:/fallback/default
+
+resilience4j.circuitbreaker:
+  configs:
+    default:
+      slidingWindowSize: 10
+      minimumNumberOfCalls: 5
+      permittedNumberOfCallsInHalfOpenState: 3
+      automaticTransitionFromOpenToHalfOpenEnabled: true
+      waitDurationInOpenState: 2s
+      failureRateThreshold: 50
+      eventConsumerBufferSize: 10
+      recordExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.io.IOException
+      ignoreExceptions:
+        - java.lang.IllegalStateException
+    shared:
+      slidingWindowSize: 100
+      permittedNumberOfCallsInHalfOpenState: 30
+      waitDurationInOpenState: 1s
+      failureRateThreshold: 50
+      eventConsumerBufferSize: 10
+      ignoreExceptions:
+        - java.lang.IllegalStateException
+  instances:
+    backendA:
+      baseConfig: default
+    backendB:
+      baseConfig: shared
+      slowCallDurationThreshold: 200ms
+
